@@ -43,7 +43,7 @@ from ssh_ldap_pubkey.config import LdapConfig
 from ssh_ldap_pubkey import __versionstr__
 
 
-DEFAULT_CONFIG_PATH = '/etc/ldap.conf'
+DEFAULT_CONFIG_PATH = "/etc/ldap.conf"
 
 quiet = False
 
@@ -53,8 +53,8 @@ def read_file(path):
 
     This is foolproof against some users that are unable to copy keys properly.
     """
-    with open(path, 'r') as f:
-        return ''.join(f.readlines()).strip()
+    with open(path, "r") as f:
+        return "".join(f.readlines()).strip()
 
 
 def read_stdin():
@@ -62,12 +62,12 @@ def read_stdin():
 
     This is foolproof against some users that are unable to copy keys properly.
     """
-    return ''.join(sys.stdin.readlines()).strip()
+    return "".join(sys.stdin.readlines()).strip()
 
 
 def halt(msg, code=1):
     """Print error message to stderr and exit with the specified code."""
-    print('Error: ' + msg, file=sys.stderr)
+    print("Error: " + msg, file=sys.stderr)
     exit(code)
 
 
@@ -77,29 +77,51 @@ def info(msg, *args):
         print(msg % args, file=sys.stderr)
 
 
+def key_comment_disclaimer():
+    """Print a disclaimer about the comment in the key."""
+    print(
+        """⚠️  Disclaimer ⚠️
+By submitting your SSH key, you acknowledge and agree to the following terms:
+
+    - Public Availability: The SSH key you are submitting will be publicly available.
+      This means that any user with access to the relevant system or service will be
+      able to view your SSH key including any personal info (e.g. email address)
+      contained in the key's comment field. Please edit your key(s) to remove any
+      personal information prior to adding key(s) to CHIME LDAP.
+
+    - No Control Over Access: CHIME will have no control over who views or accesses
+      your SSH key and any information contained therein once it is submitted.
+
+    """,
+        file=sys.stdout,
+    )
+
+
 def main(**kwargs):
     global quiet
 
-    quiet = kwargs['--quiet']
-    confpath = kwargs['--conf'] or DEFAULT_CONFIG_PATH
-    login = kwargs['--user'] or getuser()
+    quiet = kwargs["--quiet"]
+    confpath = kwargs["--conf"] or DEFAULT_CONFIG_PATH
+    login = kwargs["--user"] or getuser()
     passw = None
+
+    key_comment_disclaimer()
 
     if not access(confpath, R_OK):
         info("Notice: Could not read config: %s; running with defaults.", confpath)
         confpath = None
 
     conf = LdapConfig(confpath)
-    if kwargs['--uri']:
-        conf.uris = kwargs['--uri']
-    if kwargs['--base']:
-        conf.base = kwargs['--base']
+    if kwargs["--uri"]:
+        conf.uris = kwargs["--uri"]
+    if kwargs["--base"]:
+        conf.base = kwargs["--base"]
 
     # prompt for password
-    if kwargs['--binddn']:
-        conf.bind_dn = kwargs['--binddn']
+    if kwargs["--binddn"]:
+        conf.bind_dn = kwargs["--binddn"]
         conf.bind_pass = getpass("Enter LDAP password for '%s': " % conf.bind_dn)
-    elif kwargs['add'] or kwargs['del']:
+    elif kwargs["add"] or kwargs["del"]:
         passw = getpass("Enter login (LDAP) password for user '%s': " % login)
 
     ldapssh = LdapSSH(conf)
@@ -107,27 +129,27 @@ def main(**kwargs):
     try:
         ldapssh.connect()
 
-        if kwargs['add']:
-            filesrc = kwargs['FILE'] and kwargs['FILE'] != '-'
-            pubkey = read_file(kwargs['FILE']) if filesrc else read_stdin()
+        if kwargs["add"]:
+            filesrc = kwargs["FILE"] and kwargs["FILE"] != "-"
+            pubkey = read_file(kwargs["FILE"]) if filesrc else read_stdin()
 
             ldapssh.add_pubkey(login, passw, pubkey)
             info("Key has been stored: %s", keyname(pubkey))
 
-        elif kwargs['del']:
-            keys = ldapssh.find_and_remove_pubkeys(login, passw, kwargs['PATTERN'])
+        elif kwargs["del"]:
+            keys = ldapssh.find_and_remove_pubkeys(login, passw, kwargs["PATTERN"])
             if keys:
-                info('Deleted keys:')
-                print('\n'.join(keys))
+                info("Deleted keys:")
+                print("\n".join(keys))
             else:
-                info('No keys found to delete.')
+                info("No keys found to delete.")
 
         else:  # list
             keys = ldapssh.find_pubkeys(login)
             if keys:
-                print('\n'.join(keys))
+                print("\n".join(keys))
             else:
-                info('No public keys found.')
+                info("No public keys found.")
 
     except Error as e:
         halt(str(e), e.code)
@@ -139,6 +161,6 @@ def main(**kwargs):
         ldapssh.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     kwargs = docopt(__doc__, version="ssh-ldap-pubkey %s" % __versionstr__)
     main(**kwargs)
